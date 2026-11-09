@@ -1,0 +1,15 @@
+# DigitalOcean App Platform — panel De Volada como sitio estático (plan gratuito).
+# Desplegar: doctl apps create --spec .do/app.yaml   (o importar este archivo desde el panel web de DO)
+name: devolada-panel
+region: nyc
+static_sites:
+  - name: panel
+    # Si el repo contiene más proyectos, añade source_dir con la carpeta del panel.
+    build_command: npm install && npm run build
+    output_dir: dist
+    # SPA: cualquier ruta desconocida sirve index.html
+    catchall_document: index.html
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: "https://api.devolada.com"
