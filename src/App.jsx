@@ -301,7 +301,16 @@ const SECCIONES = {
     <div style={{ height: 28 }} />
     <Cola titulo="Viajes por conciliar" sub="Viajes cuyo saldo o reserva no cuadró al finalizar." ruta={() => '/admin/viajes/revision'} clave="viajes" acciones={resolver('viaje')} />
   </>); }],
-  envios: ['Envíos', function EnviosPage() { return <Cola titulo="Envíos entre personas" sub="Seguimiento de recogidas y entregas, con verificación por PIN. La consola no muestra códigos secretos de recogida o entrega." estados={['solicitado','asignado','recogido','en_camino','en_punto_entrega','entregado','cancelado','requiere_revision']} ruta={(e) => `/admin/envios?estado=${encodeURIComponent(e)}`} clave="envios" />; }],
+  envios: ['Envíos', function EnviosPage() {
+    const transformar = (e) => ({
+      ...e,
+      valor_paquete: e.cobra_paquete ? `Bs ${Number(e.importe_paquete || 0).toFixed(2)}` : 'Sin cobro',
+      cobro_paquete: !e.cobra_paquete ? 'No aplica' : e.estado_cobro_paquete === 'confirmado' ? 'Confirmado por remitente' : 'Pendiente',
+      metodo_delivery: e.metodo_pago === 'qr' ? 'QR al repartidor' : 'Efectivo al repartidor',
+      cobro_delivery: e.estado_cobro_delivery === 'confirmado' ? 'Confirmado por repartidor' : e.estado_cobro_delivery === 'no_aplica' ? 'Sin trazabilidad previa' : 'Pendiente',
+    });
+    return <Cola titulo="Envíos entre personas" sub="Seguimiento de recogidas y entregas. Valor del paquete y tarifa del delivery se concilian por separado; el panel nunca muestra QR privados ni códigos PIN." estados={['solicitado','asignado','recogido','en_camino','en_punto_entrega','entregado','cancelado','requiere_revision']} ruta={(e) => `/admin/envios?estado=${encodeURIComponent(e)}`} clave="envios" transformar={transformar} />;
+  }],
   soporte: ['Soporte', function SoportePage() { return <Cola titulo="Centro de soporte" sub="Casos enviados desde las cuentas de pasajeros, conductores y comercios. Cada respuesta queda registrada en auditoría." estados={['abierto','en_revision','resuelto','cerrado']} ruta={(e) => `/admin/soporte/tickets?estado=${encodeURIComponent(e)}`} clave="tickets" acciones={(f, ejecutar, ocupado) => (<>
     <button className="btn ok" disabled={ocupado} onClick={() => { const r = preguntar(`Respuesta para el ticket #${f.id} (mínimo 2 caracteres):`); if (r) ejecutar(`/admin/soporte/tickets/${f.id}/responder`, { respuesta: r, estado: 'resuelto' }, `Ticket #${f.id} respondido y resuelto.`); }}>Responder y resolver</button>
     <button className="btn" disabled={ocupado} onClick={() => { const r = preguntar(`Respuesta para el ticket #${f.id}:`); if (r) ejecutar(`/admin/soporte/tickets/${f.id}/responder`, { respuesta: r, estado: 'en_revision' }, `Respuesta guardada para el ticket #${f.id}.`); }}>Responder y seguir</button>
