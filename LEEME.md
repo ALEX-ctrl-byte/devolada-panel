@@ -23,7 +23,7 @@ El panel inicia sesión con teléfono + PIN (`POST /entrar`) de un usuario con `
 - Ciudades de operación.
 - Viajes, pedidos, envíos persona-a-persona y revisiones de conciliación.
 - Revisión de conductores, documentos y vehículos; aprobación de comercios.
-- Recargas de puntos (Bs depositados → puntos 1:1; los puntos no son dinero ni se retiran) y reembolsos QR.
+- Recargas de operaciones: cada Bs 2 verificados acredita 1 operación; mínimo Bs 2 y múltiplos de Bs 2. No existen retiros ni transferencias entre usuarios.
 - Soporte: lectura de tickets y respuesta/resolución con auditoría.
 - Calificaciones: vista de solo lectura, filtrable por tipo y puntuación.
 - Auditoría de acciones administrativas.

@@ -4,10 +4,10 @@ import { api, hayToken, setToken } from './api.js';
 const MapaLeaflet = lazy(() => import('./MapaLeaflet.jsx'));
 
 const fmt = (v) => (v === null || v === undefined ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
-// Los saldos de conductores y comercios son puntos (no dinero): 1 Bs depositado = 1 pt.
-const esSaldoPuntos = (k) => /^saldo_(prepago|comision)/.test(k);
-const pts = (v) => { const n = Number(v); return Number.isFinite(n) ? `${Number.isInteger(n) ? n : n.toFixed(2)} pts` : fmt(v); };
-const fmtCampo = (k, v) => (v !== null && v !== undefined && (esSaldoPuntos(k) || k.startsWith('puntos_')) ? pts(v) : fmt(v));
+// Los saldos operativos son unidades enteras, nunca dinero disponible.
+const esCampoOperaciones = (k) => /^saldo_(prepago|comision)/.test(k) || /^operaciones_/.test(k);
+const ops = (v) => { const n = Number(v); return Number.isFinite(n) ? `${Math.floor(n)} operaciones` : fmt(v); };
+const fmtCampo = (k, v) => (v !== null && v !== undefined && esCampoOperaciones(k) ? ops(v) : fmt(v));
 const fecha = (v) => { if (!v) return '—'; const d = new Date(v); return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' }); };
 const nombre = (k) => k.replaceAll('_', ' ');
 const preguntar = (t) => { const v = window.prompt(t); return v && v.trim() ? v.trim() : null; };
@@ -161,7 +161,7 @@ function Auditoria() {
 
 const confirmar = (t) => window.confirm(t);
 const resolver = (tipo) => (f, ejecutar, ocupado) => (
-  <button className="btn ok" disabled={ocupado} onClick={() => confirmar(`¿Reconciliar y finalizar el ${tipo} #${f.id}? Verifica antes que los puntos del conductor/comercio cuadran.`) && ejecutar(`/admin/${tipo}s/${f.id}/resolver-finalizacion`, {}, `${tipo[0].toUpperCase() + tipo.slice(1)} #${f.id} finalizado.`)}>Resolver y finalizar</button>
+  <button className="btn ok" disabled={ocupado} onClick={() => confirmar(`¿Reconciliar y finalizar el ${tipo} #${f.id}? Verifica antes que las operaciones del conductor/comercio cuadran.`) && ejecutar(`/admin/${tipo}s/${f.id}/resolver-finalizacion`, {}, `${tipo[0].toUpperCase() + tipo.slice(1)} #${f.id} finalizado.`)}>Resolver y finalizar</button>
 );
 
 function MapaOperaciones() {
@@ -270,17 +270,16 @@ function UsuariosPendientes() {
     acciones={(f, ejecutar, ocupado) => (<><Decidir base={`/admin/usuarios/${f.id}`} ejecutar={ejecutar} ocupado={ocupado} okTxt={`Cuenta de ${f.nombre} aprobada. Ya puede iniciar sesión.`} malTxt={`Solicitud de ${f.nombre} rechazada.`} /><AsignarPin id={f.id} nombre={f.nombre} ejecutar={ejecutar} ocupado={ocupado} /></>)} />;
 }
 
-// Recargas: los Bs depositados en la cuenta de De Volada se convierten en puntos 1:1.
-// Los puntos NO son dinero: no se retiran ni se devuelven; cada servicio completado descuenta 2 pts.
-function RecargasPuntos() {
-  return <Cola titulo="Recargas de puntos" sub="Confirma solo después de ver el depósito real en la cuenta de De Volada. Al confirmar, cada Bs depositado se acredita como 1 punto."
-    aviso="Los puntos no son dinero: no se pueden retirar ni canjear por efectivo. Solo sirven para operar en De Volada (cada servicio completado descuenta 2 pts)."
-    estados={['pendiente', 'confirmada', 'rechazada']} ruta={(e) => `/admin/billetera/recargas?estado=${e}`} clave="recargas"
-    transformar={(r) => ({ id: r.id, solicitante: `${r.nombre ?? ''} ${r.apellido ?? ''}`.trim() || `Usuario #${r.usuario_id}`, telefono: r.telefono, rol: ROLES[r.rol] ?? r.rol, monto_depositado: `Bs ${Number(r.monto)}`, [r.estado === 'confirmada' ? 'puntos_acreditados' : 'puntos_a_acreditar']: Number(r.monto), metodo: r.metodo, referencia_cliente: r.referencia_cliente, referencia_pago: r.referencia_pago, motivo_revision: r.motivo_revision, solicitado: fecha(r.solicitado_en), _monto: Number(r.monto) })}
-    acciones={(f, ejecutar, ocupado, estado) => estado === 'pendiente' && (<>
-      <button className="btn ok" disabled={ocupado} onClick={() => { const r = preguntar(`Depósito de Bs ${f._monto} → se acreditarán ${f._monto} pts a ${f.solicitante}.\nReferencia del depósito verificado:`); if (r) ejecutar(`/admin/billetera/recargas/${f.id}/confirmar`, { referencia_pago: r }, `Recarga confirmada: +${f._monto} pts para ${f.solicitante}.`); }}>Confirmar y acreditar</button>
-      <button className="btn mal" disabled={ocupado} onClick={() => { const m = preguntar('Motivo del rechazo (mínimo 5 caracteres):'); if (m) ejecutar(`/admin/billetera/recargas/${f.id}/rechazar`, { motivo: m }, 'Recarga rechazada. No se acreditaron puntos.'); }}>Rechazar</button>
-    </>)} />;
+// Recargas de operaciones: Bs 2 verificados acreditan 1 operación (mínimo Bs 2).
+function RecargasOperaciones() {
+  return <Cola titulo="Recargas de operaciones" sub="Confirma únicamente después de verificar el depósito real en la cuenta oficial. Cada Bs 2 acredita 1 operación; las recargas deben ser múltiplos de Bs 2."
+    aviso="Las operaciones son unidades internas, no dinero. No existen retiros, transferencias entre usuarios ni envío de dinero. Cada viaje, envío/delivery o venta completada consume 1 operación según corresponda."
+    estados={['pendiente', 'confirmada', 'rechazada']} ruta={(e) => `/admin/operaciones/recargas?estado=${e}`} clave="recargas"
+    transformar={(r) => { const monto = Number(r.monto_bs ?? r.monto); const cantidad = Number(r.operaciones_acreditadas ?? r.operaciones_a_acreditar ?? Math.floor(monto / 2)); return { id: r.id, solicitante: `${r.nombre ?? ''} ${r.apellido ?? ''}`.trim() || `Usuario #${r.usuario_id}`, telefono: r.telefono, rol: ROLES[r.rol] ?? r.rol, monto_depositado: `Bs ${monto.toFixed(2)}`, [r.estado === 'confirmada' ? 'operaciones_acreditadas' : 'operaciones_a_acreditar']: cantidad, metodo: r.metodo, referencia_cliente: r.referencia_cliente, referencia_pago: r.referencia_pago, motivo_revision: r.motivo_revision, solicitado: fecha(r.solicitado_en), _monto: monto }; }}
+    acciones={(f, ejecutar, ocupado, estado) => estado === 'pendiente' && <>
+      <button className="btn ok" disabled={ocupado} onClick={() => { const r = preguntar(`Depósito verificado de Bs ${f._monto.toFixed(2)} → +${Math.floor(f._monto / 2)} operaciones para ${f.solicitante}.\nReferencia del depósito verificado:`); if (r) ejecutar(`/admin/operaciones/recargas/${f.id}/confirmar`, { referencia_pago: r }, `Recarga confirmada: +${Math.floor(f._monto / 2)} operaciones para ${f.solicitante}.`); }}>Confirmar y acreditar</button>
+      <button className="btn mal" disabled={ocupado} onClick={() => { const m = preguntar('Motivo del rechazo (mínimo 5 caracteres):'); if (m) ejecutar(`/admin/operaciones/recargas/${f.id}/rechazar`, { motivo: m }, 'Recarga rechazada. No se acreditaron operaciones.'); }}>Rechazar</button>
+    </>} />;
 }
 
 const SECCIONES = {
@@ -295,7 +294,7 @@ const SECCIONES = {
   reembolsos: ['Reembolsos QR', function ReembolsosPage() { return <Cola titulo="Reembolsos QR pendientes" sub="Esta cola es de seguimiento. El comercio debe devolver realmente el dinero y registrar la referencia bancaria; el panel no simula una devolución." ruta={() => '/admin/pedidos/reembolsos'} clave="pedidos" />; }],
   conductores: ['Conductores', function ConductoresPage() { return <Cola titulo="Conductores" sub="Revisa documentos y aprueba o rechaza solicitudes. Pulsa una fila para ver el detalle." estados={['en_revision', 'pendiente', 'aprobado', 'rechazado', 'suspendido']} ruta={(e) => `/admin/conductores?estado=${e}`} clave="conductores" Detalle={ConductorDet} />; }],
   comercios: ['Comercios', function ComerciosPage() { return <Cola titulo="Comercios" sub="Aprueba los comercios que aparecerán en la app." estados={['pendiente', 'aprobado', 'rechazado']} ruta={(e) => `/admin/comercios?estado=${e}`} clave="comercios" Detalle={ComercioDet} />; }],
-  recargas: ['Recargas de puntos', RecargasPuntos],
+  recargas: ['Recargas de operaciones', RecargasOperaciones],
   revision: ['Por conciliar', function RevisionPage() { return (<>
     <Cola titulo="Pedidos por conciliar" sub="Pedidos cuyo saldo o reserva no cuadró al finalizar." ruta={() => '/admin/pedidos/revision'} clave="pedidos" acciones={resolver('pedido')} />
     <div style={{ height: 28 }} />
