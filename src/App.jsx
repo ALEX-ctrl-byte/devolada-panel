@@ -1,7 +1,7 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { api, hayToken, setToken } from './api.js';
 
-const MapaLeaflet = lazy(() => import('./MapaLeaflet.jsx'));
+const MapaOperativo = lazy(() => import('./MapaOperativo.jsx'));
 
 const fmt = (v) => (v === null || v === undefined ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 // Los saldos operativos son unidades enteras, nunca dinero disponible.
@@ -175,8 +175,8 @@ function MapaOperaciones() {
       <div className="barra"><button className="btn" onClick={cargar}>Actualizar posiciones</button><span>{puntos.length} servicio(s) con ubicación reciente</span></div>
       {err && <div className="msg e" role="alert">{err}</div>}
       <div className="mapa">
-        <Suspense fallback={<p className="vacio">Cargando mapa…</p>}><MapaLeaflet puntos={puntos} /></Suspense>
-        <p className="sub">Mapa gratuito de OpenStreetMap (sin token ni costo). Amarillo: viaje · Azul: delivery · Verde: envío. Si el mapa no carga, usa la tabla y el botón "Ver en OpenStreetMap".</p>
+        <Suspense fallback={<p className="vacio">Cargando mapa…</p>}><MapaOperativo puntos={puntos} /></Suspense>
+        <p className="sub">Mapa gratuito de OpenFreeMap con datos de OpenStreetMap (sin token ni costo). Amarillo: viaje · Azul: delivery · Verde: envío. Si el mapa no carga, usa la tabla y el botón "Ver en OpenStreetMap".</p>
       </div>
       {d && <Tabla filas={puntos} acciones={(p) => <a className="btn" href={osm(p)} target="_blank" rel="noopener noreferrer">Ver en OpenStreetMap</a>} />}
       {d && puntos.length === 0 && <p className="vacio">No hay conductores con servicios activos y GPS reciente.</p>}
